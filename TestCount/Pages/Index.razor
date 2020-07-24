@@ -1,0 +1,81 @@
+﻿@page "/"
+
+@using System
+@using System.Net
+@using System.IO
+@using System.Globalization
+@using System.Diagnostics
+@using System.Threading
+
+
+<h1>@count</h1>
+
+<button @onclick="@StartCountDown">Start Countdown</button>
+
+<p>This component load data from ftp://ftp.free.fr/pub/ .</p>
+
+<button @onclick='@(() => ListFiles("ftp://ftp.free.fr/pub/"))'>Read</button>
+
+
+@code {
+
+    private int count { get; set; } = 10;
+
+    private List<string> names = new List<string>();
+
+    protected override void OnInitialized()
+    {
+
+    }
+
+
+    private async Task StartCountDown()
+    {
+        var timer = new Timer(new TimerCallback(_ =>
+        {
+            if (count <= 0) return;
+            count--;
+
+            InvokeAsync(() =>
+            {
+                StateHasChanged();
+            });
+        }), null, 1000, 1000);
+    }
+
+    private async Task ListFiles(string ftpPath)
+    {
+        FtpWebRequest request = (FtpWebRequest)WebRequest.Create(ftpPath);
+        request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+        request.Credentials = new NetworkCredential("Anonymous", "amonymous@mail.ru");
+        using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
+        using (Stream responseStream = response.GetResponseStream())
+        using (StreamReader reader = new StreamReader(responseStream))
+        {
+            string line = reader.ReadLine();
+            while (!string.IsNullOrEmpty(line))
+            {
+                string[] tokens = line.Split(new[] { ' ' }, 9, StringSplitOptions.RemoveEmptyEntries);
+                string name = tokens[8];
+                string permissions = tokens[0];
+
+                if (permissions[0] == 'd')
+                {
+                    ListFiles(ftpPath + name + "/");
+                }
+                else
+                {
+                    count++;
+                    InvokeAsync(() =>
+                    {
+                        StateHasChanged();
+                    });
+                    Debug.WriteLine($"{count} {name}");
+
+                    names.Add(name);
+                    line = reader.ReadLine();
+                }
+            }
+        }
+    }
+}
